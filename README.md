@@ -1,36 +1,190 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Monday Nail Studio - Website
 
-## Getting Started
+เว็บไซต์สำหรับร้านทำเล็บเจล Monday Nail Studio ใกล้มหาวิทยาลัยกรุงเทพ (รังสิต)
 
-First, run the development server:
+## 🚀 Features
+
+- **One-Page Website**: หน้าเดียวครบครันทุกฟีเจอร์
+- **SEO Optimized**: ปรับแต่งสำหรับ SEO ครบถ้วน
+- **Responsive Design**: รองรับทุกขนาดหน้าจอ
+- **Modern UI/UX**: ดีไซน์สวยงาม ทันสมัย
+- **Smooth Animations**: ใช้ Framer Motion สำหรับ animation
+- **TypeScript**: Type-safe development
+- **Tailwind CSS**: Styling ที่รวดเร็วและยืดหยุ่น
+
+## 📱 Sections
+
+1. **Hero Section** - แนะนำร้านและ USP
+2. **Benefits** - เหตุผลที่ต้องเลือกร้านเรา
+3. **Services** - รายการบริการทั้งหมด
+4. **Reviews** - รีวิวจากลูกค้า
+5. **FAQ** - คำถามที่พบบ่อย
+6. **Contact** - ข้อมูลติดต่อและฟอร์มจอง
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 15 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS v4
+- **Animations**: Framer Motion
+- **State Management**: Zustand
+- **Icons**: Lucide React
+- **Deployment**: Vercel (แนะนำ)
+
+## 📦 Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+# Clone repository
+git clone <repository-url>
+cd monday-nail
+
+# Install dependencies
+pnpm install
+
+# Run development server
 pnpm dev
-# or
-bun dev
+
+# Build for production
+pnpm build
+
+# Start production server
+pnpm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔧 Configuration
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+สร้างไฟล์ `.env.local` และเพิ่ม:
 
-## Learn More
+```env
+NEXT_PUBLIC_SITE_URL=https://monday-nail-studio.com
+NEXT_PUBLIC_LINE_URL=https://lin.ee/pDN1jbV
+NEXT_PUBLIC_PHONE=097-695-6195
+```
 
-To learn more about Next.js, take a look at the following resources:
+### SEO Configuration
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+แก้ไขข้อมูลใน `src/app/layout.tsx`:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Google Analytics ID
+- Google Search Console verification
+- Open Graph images
 
-## Deploy on Vercel
+## 📁 Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+src/
+├── app/
+│   ├── layout.tsx          # Root layout with SEO
+│   ├── page.tsx           # Main page component
+│   └── globals.css        # Global styles
+├── components/
+│   ├── navbar.tsx         # Navigation bar
+│   ├── hero.tsx          # Hero section
+│   ├── benefits.tsx      # Benefits section
+│   ├── services.tsx      # Services section
+│   ├── reviews.tsx       # Reviews section
+│   ├── faq.tsx          # FAQ section
+│   ├── contact.tsx      # Contact section
+│   └── footer.tsx       # Footer
+├── hooks/
+│   └── use-store.ts     # Zustand store
+├── types/
+│   └── index.ts         # TypeScript interfaces
+└── utils/
+    └── data.ts          # Static data
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🎨 Customization
+
+### Colors
+
+สีหลักของเว็บไซต์อยู่ใน Tailwind config:
+
+- Primary: Pink (#ec4899)
+- Secondary: Purple (#a855f7)
+- Background: Pink/Purple gradients
+
+### Content
+
+แก้ไขเนื้อหาได้ใน `src/utils/data.ts`:
+
+- ข้อมูลบริการ
+- รีวิวลูกค้า
+- FAQ
+- ข้อมูลติดต่อ
+
+## 📸 Images
+
+เพิ่มรูปภาพใน `public/` folder:
+
+- `og-image.jpg` - Open Graph image (1200x630)
+- `favicon.ico` - Favicon
+- `apple-touch-icon.png` - iOS icon
+- `services/` - รูปภาพบริการต่างๆ
+
+## 🚀 Deployment
+
+### Vercel (แนะนำ)
+
+1. Push code ไป GitHub
+2. Connect repository ใน Vercel
+3. Deploy automatically
+
+### Environment Variables ใน Vercel
+
+เพิ่ม environment variables:
+
+- `NEXT_PUBLIC_SITE_URL`
+- `NEXT_PUBLIC_LINE_URL`
+- `NEXT_PUBLIC_PHONE`
+
+## 📊 Analytics
+
+### Google Analytics
+
+เพิ่ม Google Analytics 4 ใน `src/app/layout.tsx`:
+
+```tsx
+// Google Analytics
+<script
+  async
+  src={`https://www.googletagmanager.com/gtag/js?id=${process.env.NEXT_PUBLIC_GA_ID}`}
+/>
+<script
+  dangerouslySetInnerHTML={{
+    __html: `
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${process.env.NEXT_PUBLIC_GA_ID}');
+    `,
+  }}
+/>
+```
+
+## 🔍 SEO Checklist
+
+- [x] Meta tags (title, description, keywords)
+- [x] Open Graph tags
+- [x] Twitter Card tags
+- [x] Structured data (JSON-LD)
+- [x] Sitemap
+- [x] Robots.txt
+- [x] Canonical URLs
+- [x] Alt text for images
+- [x] Semantic HTML
+- [x] Mobile responsive
+- [x] Fast loading
+
+## 📞 Contact
+
+สำหรับคำถามหรือปัญหาทางเทคนิค:
+
+- Email: [your-email]
+- LINE: [your-line]
+
+## 📄 License
+
+MIT License - ดูรายละเอียดใน LICENSE file
