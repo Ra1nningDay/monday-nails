@@ -5,10 +5,6 @@ import { Phone, MapPin, Clock, MessageCircle, ArrowRight } from "lucide-react";
 import { CONTACT_INFO } from "@/utils/data";
 
 export default function Contact() {
-  const handleScrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   return (
     <section id="contact" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

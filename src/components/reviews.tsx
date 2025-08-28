@@ -62,7 +62,7 @@ export default function Reviews() {
 
                 {/* Review Text */}
                 <blockquote className="text-gray-700 text-center mb-6 italic leading-relaxed">
-                  "{review.comment}"
+                  &ldquo;{review.comment}&rdquo;
                 </blockquote>
 
                 {/* Customer Info */}

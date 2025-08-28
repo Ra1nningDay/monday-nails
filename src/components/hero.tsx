@@ -229,7 +229,7 @@ function Floating({
   };
   const styleMobile: React.CSSProperties = {
     // ใช้เมื่อ <= 1024px
-    // @ts-ignore
+    // @ts-expect-error -- CSS custom properties for mobile overrides
     "--topM": img.topM,
     "--leftM": img.leftM,
     "--rightM": img.rightM,
