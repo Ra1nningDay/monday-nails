@@ -3,7 +3,7 @@ import { Service, Benefit, Review, FAQ, NavItem, ContactInfo } from "@/types";
 export const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "หน้าแรก", href: "#home" },
   { id: "services", label: "บริการ", href: "#services" },
-  { id: "work", label: "ผลงาน", href: "#work" },
+  { id: "portfolio", label: "ผลงาน", href: "#portfolio" },
   { id: "pricing", label: "แพ็กเกจ", href: "#pricing" },
   { id: "reviews", label: "รีวิว", href: "#reviews" },
   { id: "faq", label: "FAQ", href: "#faq" },
