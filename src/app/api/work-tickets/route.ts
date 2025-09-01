@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
+import { uploadMultipleImages } from "@/lib/cloudinary";
+import { testCloudinaryConnection } from "@/lib/cloudinary-test";
+import { Prisma } from "@prisma/client";
 
 // GET - ดึง Work Tickets ทั้งหมด
 export async function GET() {
@@ -62,40 +63,61 @@ export async function POST(req: NextRequest) {
     let imageUrls: string[] = [];
     if (imageFiles.length > 0) {
       try {
-        // สร้างโฟลเดอร์ uploads ถ้ายังไม่มี
-        const uploadDir = join(process.cwd(), "public", "uploads");
-        await mkdir(uploadDir, { recursive: true });
+        console.log(
+          "🚀 Starting Cloudinary upload for",
+          imageFiles.length,
+          "files"
+        );
 
-        // อัพโหลดรูปภาพทั้งหมด
-        for (const imageFile of imageFiles) {
-          // สร้างชื่อไฟล์ที่ไม่ซ้ำกัน
-          const timestamp = Date.now();
-          const randomSuffix = Math.random().toString(36).substring(2, 8);
-          const fileExtension = imageFile.name.split(".").pop();
-          const fileName = `work-${timestamp}-${randomSuffix}.${fileExtension}`;
-          const filePath = join(uploadDir, fileName);
+        // เช็ค Cloudinary config
+        console.log("📋 Cloudinary Config:", {
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+          api_key: process.env.CLOUDINARY_API_KEY,
+          api_secret: process.env.CLOUDINARY_API_SECRET
+            ? "***set***"
+            : "***not set***",
+        });
 
-          // แปลง File เป็น Buffer และบันทึก
-          const bytes = await imageFile.arrayBuffer();
-          const buffer = Buffer.from(bytes);
-          await writeFile(filePath, buffer);
-
-          // เพิ่ม URL ลงใน array
-          imageUrls.push(`/uploads/${fileName}`);
+        // ทดสอบ connection ก่อน
+        const connectionOk = await testCloudinaryConnection();
+        if (!connectionOk) {
+          throw new Error("Cloudinary connection failed");
         }
+
+        // Upload รูปภาพไป Cloudinary
+        imageUrls = await uploadMultipleImages(
+          imageFiles,
+          "monday-nail/work-images"
+        );
+        console.log(
+          "✅ Images uploaded to Cloudinary successfully:",
+          imageUrls
+        );
       } catch (uploadError) {
-        console.error("Error uploading images:", uploadError);
+        console.error("❌ Error uploading images to Cloudinary:", uploadError);
+        console.error(
+          "❌ Upload error details:",
+          uploadError instanceof Error
+            ? {
+                message: uploadError.message,
+                stack: uploadError.stack,
+                name: uploadError.name,
+              }
+            : uploadError
+        );
         // ถ้าอัพโหลดรูปภาพไม่สำเร็จ ให้สร้าง ticket โดยไม่มีรูปภาพ
         imageUrls = [];
       }
     }
+
+    console.log("📝 Final imageUrls before saving:", imageUrls);
 
     const ticket = await prisma.workTicket.create({
       data: {
         price,
         workerName,
         description: description || null,
-        imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        imageUrls: imageUrls.length > 0 ? imageUrls : Prisma.DbNull,
         status: "completed",
       },
     });

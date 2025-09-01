@@ -189,7 +189,7 @@ export default function WorkReportPage() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 required
               >
-                <option value="">เลือกช่าง</option>
+                <option value="">-- เลือกช่าง --</option>
                 {useUser.map((user) => (
                   <option key={user.name} value={user.name}>
                     {user.name}
