@@ -13,6 +13,18 @@ import {
   Target,
   Clock,
 } from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 interface WorkTicket {
   id: string;
@@ -161,6 +173,61 @@ export default function AdminDashboardPage() {
         return "ไม่ทราบสถานะ";
     }
   };
+
+  // Chart data preparation - รายได้รายวันจาก activities ล่าสุด
+  const revenueChartData = stats?.recentActivities
+    ? (() => {
+        // จัดกลุ่มข้อมูลตามวันที่
+        const dailyRevenue: Record<string, number> = {};
+
+        stats.recentActivities.forEach((activity) => {
+          const date = new Date(activity.createdAt);
+          const dateKey = date.toLocaleDateString("th-TH", {
+            month: "short",
+            day: "numeric",
+          });
+
+          dailyRevenue[dateKey] = (dailyRevenue[dateKey] || 0) + activity.price;
+        });
+
+        // แปลงเป็น array และเรียงตามวันที่
+        return Object.entries(dailyRevenue)
+          .map(([date, revenue]) => ({
+            วันที่: date,
+            รายได้: revenue,
+          }))
+          .sort((a, b) => {
+            // เรียงตามวันที่ (ใหม่ไปเก่า)
+            return new Date(b.วันที่).getTime() - new Date(a.วันที่).getTime();
+          })
+          .slice(0, 7) // เอาแค่ 7 วันล่าสุด
+          .reverse(); // กลับให้เก่าไปใหม่สำหรับกราฟ
+      })()
+    : [];
+
+  const statusChartData = [
+    {
+      name: "เสร็จแล้ว",
+      value:
+        stats?.recentActivities?.filter((a) => a.status === "completed")
+          .length || 0,
+      color: "#10b981",
+    },
+    {
+      name: "รอดำเนินการ",
+      value:
+        stats?.recentActivities?.filter((a) => a.status === "pending").length ||
+        0,
+      color: "#f59e0b",
+    },
+    {
+      name: "ยกเลิก",
+      value:
+        stats?.recentActivities?.filter((a) => a.status === "cancelled")
+          .length || 0,
+      color: "#ef4444",
+    },
+  ];
 
   if (loading) {
     return (
@@ -321,51 +388,130 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Recent Activity */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-        <div className="flex items-center mb-6">
-          <div className="p-2 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg mr-3">
-            <Clock className="h-5 w-5 text-white" />
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900">กิจกรรมล่าสุด</h2>
-        </div>
-        <div className="space-y-4">
-          {stats?.recentActivities && stats.recentActivities.length > 0 ? (
-            stats.recentActivities.map((activity) => (
-              <div
-                key={activity.id}
-                className="flex items-center space-x-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-              >
-                <div className="flex-shrink-0">
-                  <div
-                    className={`w-3 h-3 ${getStatusColor(
-                      activity.status
-                    )} rounded-full shadow-sm`}
-                  ></div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {activity.description || `งานของ ${activity.workerName}`} -{" "}
-                    {activity.workerName}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    ราคา {formatCurrency(activity.price)} -{" "}
-                    {getStatusText(activity.status)} -{" "}
-                    {formatTimeAgo(activity.createdAt)}
-                  </p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-12 text-gray-500">
-              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Clock className="w-8 h-8 text-gray-400" />
-              </div>
-              <p className="text-lg font-medium">ยังไม่มีกิจกรรมล่าสุด</p>
-              <p className="text-sm">
-                เริ่มสร้างรายงานงานใหม่เพื่อดูกิจกรรมที่นี่
-              </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Activity List */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+          <div className="flex items-center mb-6">
+            <div className="p-2 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg mr-3">
+              <Clock className="h-5 w-5 text-white" />
             </div>
-          )}
+            <h2 className="text-xl font-semibold text-gray-900">
+              กิจกรรมล่าสุด
+            </h2>
+          </div>
+          <div className="space-y-4 max-h-80 overflow-y-auto">
+            {stats?.recentActivities && stats.recentActivities.length > 0 ? (
+              stats.recentActivities.map((activity) => (
+                <div
+                  key={activity.id}
+                  className="flex items-center space-x-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex-shrink-0">
+                    <div
+                      className={`w-3 h-3 ${getStatusColor(
+                        activity.status
+                      )} rounded-full shadow-sm`}
+                    ></div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">
+                      {activity.description || `งานของ ${activity.workerName}`}{" "}
+                      - {activity.workerName}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      ราคา {formatCurrency(activity.price)} -{" "}
+                      {getStatusText(activity.status)} -{" "}
+                      {formatTimeAgo(activity.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-12 text-gray-500">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-lg font-medium">ยังไม่มีกิจกรรมล่าสุด</p>
+                <p className="text-sm">
+                  เริ่มสร้างรายงานงานใหม่เพื่อดูกิจกรรมที่นี่
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Charts */}
+        <div className="space-y-6">
+          {/* Revenue Trend */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              แนวโน้มรายได้
+            </h3>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={revenueChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="วันที่" />
+                  <YAxis
+                    tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [
+                      formatCurrency(value),
+                      "รายได้",
+                    ]}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="รายได้"
+                    stroke="#3b82f6"
+                    strokeWidth={3}
+                    dot={{ fill: "#3b82f6", strokeWidth: 2 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Status Distribution */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              สถานะงานล่าสุด
+            </h3>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusChartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {statusChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number) => [`${value} งาน`, "จำนวน"]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex justify-center space-x-4 mt-4">
+              {statusChartData.map((item, index) => (
+                <div key={index} className="flex items-center">
+                  <div
+                    className="w-3 h-3 rounded-full mr-2"
+                    style={{ backgroundColor: item.color }}
+                  ></div>
+                  <span className="text-xs text-gray-600">{item.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

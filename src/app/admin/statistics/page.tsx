@@ -8,6 +8,22 @@ import {
   Activity,
   Target,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  Area,
+  AreaChart,
+} from "recharts";
 
 interface WorkTicket {
   id: string;
@@ -172,6 +188,35 @@ export default function StatisticsPage() {
       : 0;
   };
 
+  // Chart data preparation
+  const statusChartData = stats
+    ? [
+        { name: "เสร็จแล้ว", value: stats.completedTickets, color: "#10b981" },
+        { name: "รอดำเนินการ", value: stats.pendingTickets, color: "#f59e0b" },
+        { name: "ยกเลิก", value: stats.cancelledTickets, color: "#ef4444" },
+      ]
+    : [];
+
+  const workerChartData =
+    stats?.topWorkers.map((worker) => ({
+      name: worker.name,
+      งาน: worker.count,
+      รายได้: worker.revenue,
+    })) || [];
+
+  const revenueChartData =
+    stats?.monthlyRevenue.map((item) => ({
+      เดือน: item.month.split(" ")[0], // แสดงแค่เดือน
+      รายได้: item.revenue,
+    })) || [];
+
+  const dailyChartData =
+    stats?.dailyStats.map((item) => ({
+      วันที่: item.date.split("/").slice(0, 2).join("/"), // แสดงแค่วัน/เดือน
+      งาน: item.tickets,
+      รายได้: item.revenue,
+    })) || [];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -295,32 +340,41 @@ export default function StatisticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">สถานะงาน</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
-                <span className="text-gray-700">เสร็จแล้ว</span>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={statusChartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {statusChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value: number) => [`${value} งาน`, "จำนวน"]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="space-y-3 mt-4">
+            {statusChartData.map((item, index) => (
+              <div key={index} className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div
+                    className="w-3 h-3 rounded-full mr-3"
+                    style={{ backgroundColor: item.color }}
+                  ></div>
+                  <span className="text-gray-700">{item.name}</span>
+                </div>
+                <span className="font-medium">{item.value}</span>
               </div>
-              <span className="font-medium">
-                {stats?.completedTickets || 0}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-yellow-500 rounded-full mr-3"></div>
-                <span className="text-gray-700">รอดำเนินการ</span>
-              </div>
-              <span className="font-medium">{stats?.pendingTickets || 0}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-red-500 rounded-full mr-3"></div>
-                <span className="text-gray-700">ยกเลิก</span>
-              </div>
-              <span className="font-medium">
-                {stats?.cancelledTickets || 0}
-              </span>
-            </div>
+            ))}
           </div>
         </div>
 
@@ -328,26 +382,21 @@ export default function StatisticsPage() {
           <h3 className="text-lg font-medium text-gray-900 mb-4">
             ช่างยอดนิยม
           </h3>
-          <div className="space-y-3">
-            {stats?.topWorkers.map((worker, index) => (
-              <div
-                key={worker.name}
-                className="flex items-center justify-between"
-              >
-                <div className="flex items-center">
-                  <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-medium mr-3">
-                    {index + 1}
-                  </span>
-                  <span className="text-gray-700">{worker.name}</span>
-                </div>
-                <div className="text-right">
-                  <div className="font-medium">{worker.count} งาน</div>
-                  <div className="text-sm text-gray-500">
-                    {formatCurrency(worker.revenue)}
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={workerChartData} layout="horizontal">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis dataKey="name" type="category" width={80} />
+                <Tooltip
+                  formatter={(value: number, name: string) => [
+                    name === "งาน" ? `${value} งาน` : formatCurrency(value),
+                    name,
+                  ]}
+                />
+                <Bar dataKey="งาน" fill="#3b82f6" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
@@ -358,18 +407,37 @@ export default function StatisticsPage() {
           <h3 className="text-lg font-medium text-gray-900 mb-4">
             รายได้รายเดือน
           </h3>
-          <div className="space-y-3">
-            {stats.monthlyRevenue.map((item) => (
-              <div
-                key={item.month}
-                className="flex items-center justify-between"
-              >
-                <span className="text-gray-700">{item.month}</span>
-                <span className="font-medium text-green-600">
-                  {formatCurrency(item.revenue)}
-                </span>
-              </div>
-            ))}
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={revenueChartData}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.1} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="เดือน" />
+                <YAxis
+                  tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+                />
+                <Tooltip
+                  formatter={(value: number) => [
+                    formatCurrency(value),
+                    "รายได้",
+                  ]}
+                  labelStyle={{ color: "#374151" }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="รายได้"
+                  stroke="#10b981"
+                  fillOpacity={1}
+                  fill="url(#colorRevenue)"
+                  strokeWidth={3}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
       )}
@@ -380,21 +448,48 @@ export default function StatisticsPage() {
           <h3 className="text-lg font-medium text-gray-900 mb-4">
             กิจกรรมล่าสุด (7 วัน)
           </h3>
-          <div className="space-y-3">
-            {stats.dailyStats.map((item) => (
-              <div
-                key={item.date}
-                className="flex items-center justify-between"
-              >
-                <span className="text-gray-700">{item.date}</span>
-                <div className="text-right">
-                  <div className="font-medium">{item.tickets} งาน</div>
-                  <div className="text-sm text-gray-500">
-                    {formatCurrency(item.revenue)}
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dailyChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="วันที่" />
+                <YAxis yAxisId="left" orientation="left" />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+                />
+                <Tooltip
+                  formatter={(value: number, name: string) => [
+                    name === "งาน" ? `${value} งาน` : formatCurrency(value),
+                    name,
+                  ]}
+                  labelStyle={{ color: "#374151" }}
+                />
+                <Bar
+                  yAxisId="left"
+                  dataKey="งาน"
+                  fill="#6366f1"
+                  radius={[4, 4, 0, 0]}
+                />
+                <Bar
+                  yAxisId="right"
+                  dataKey="รายได้"
+                  fill="#10b981"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex items-center justify-center mt-4 space-x-6">
+            <div className="flex items-center">
+              <div className="w-3 h-3 bg-indigo-500 rounded-full mr-2"></div>
+              <span className="text-sm text-gray-600">จำนวนงาน</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+              <span className="text-sm text-gray-600">รายได้</span>
+            </div>
           </div>
         </div>
       )}

@@ -1,12 +1,23 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showRedirectMessage, setShowRedirectMessage] = useState(false);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    // ตรวจสอบว่ามี from parameter หรือไม่
+    const from = searchParams.get("from");
+    if (from) {
+      setShowRedirectMessage(true);
+    }
+  }, [searchParams]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -35,6 +46,16 @@ export default function AdminLoginPage() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4">
         <h1 className="text-2xl font-semibold">Admin Login</h1>
+
+        {/* Redirect Message */}
+        {showRedirectMessage && (
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-800">
+              ⚠️ กรุณาเข้าสู่ระบบเพื่อเข้าถึงหน้าดังกล่าว
+            </p>
+          </div>
+        )}
+
         {error ? <p className="text-red-600 text-sm">{error}</p> : null}
         <div className="space-y-2">
           <label className="block text-sm">Email</label>
