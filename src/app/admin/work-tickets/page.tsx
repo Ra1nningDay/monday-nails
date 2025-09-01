@@ -18,7 +18,7 @@ interface WorkTicket {
   id: string;
   price: number;
   workerName: string;
-  imageUrl?: string;
+  imageUrls?: string[] | null;
   description?: string;
   status: string;
   createdAt: string;
@@ -673,41 +673,50 @@ export default function WorkTicketsPage() {
                       </div>
 
                       <div className="flex justify-center lg:justify-end">
-                        {ticket.imageUrl && (
-                          <div className="relative group w-full sm:w-auto">
-                            <div className="relative">
-                              <Image
-                                src={ticket.imageUrl}
-                                alt={`ผลงานของ ${ticket.workerName}`}
-                                width={128}
-                                height={128}
-                                className="w-full h-48 sm:w-32 sm:h-32 object-cover bg-white rounded-xl border border-gray-200 cursor-pointer hover:scale-105 transition-transform duration-200 hover:shadow-lg"
-                                onClick={() => {
-                                  if (ticket.imageUrl) {
-                                    openImageModal(ticket.imageUrl);
-                                  }
-                                }}
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = "none";
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    const errorDiv =
-                                      document.createElement("div");
-                                    errorDiv.className =
-                                      "w-full h-48 sm:w-32 sm:h-32 bg-gray-100 border border-gray-200 rounded-xl flex items-center justify-center text-gray-500 text-xs text-center";
-                                    errorDiv.innerHTML =
-                                      "<div>📷<br/>รูปภาพ<br/>โหลดไม่ได้</div>";
-                                    parent.appendChild(errorDiv);
-                                  }
-                                }}
-                              />
-                              <div className="absolute inset-0 bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-xl flex items-center justify-center pointer-events-none">
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-white text-sm font-semibold bg-gray-500 bg-opacity-80 px-3 py-2 rounded-lg shadow-lg border border-white border-opacity-20">
-                                  <Eye className="w-4 h-4 inline" />
+                        {ticket.imageUrls && ticket.imageUrls.length > 0 && (
+                          <div className="flex flex-wrap gap-2 justify-center lg:justify-end">
+                            {ticket.imageUrls.map((imageUrl, index) => (
+                              <div key={index} className="relative group">
+                                <div className="relative">
+                                  <Image
+                                    src={imageUrl}
+                                    alt={`ผลงานของ ${
+                                      ticket.workerName
+                                    } - รูปที่ ${index + 1}`}
+                                    width={128}
+                                    height={128}
+                                    className="w-24 h-24 sm:w-32 sm:h-32 object-cover bg-white rounded-xl border border-gray-200 cursor-pointer hover:scale-105 transition-transform duration-200 hover:shadow-lg"
+                                    onClick={() => openImageModal(imageUrl)}
+                                    onError={(e) => {
+                                      const target =
+                                        e.target as HTMLImageElement;
+                                      target.style.display = "none";
+                                      const parent = target.parentElement;
+                                      if (parent) {
+                                        const errorDiv =
+                                          document.createElement("div");
+                                        errorDiv.className =
+                                          "w-24 h-24 sm:w-32 sm:h-32 bg-gray-100 border border-gray-200 rounded-xl flex items-center justify-center text-gray-500 text-xs text-center";
+                                        errorDiv.innerHTML =
+                                          "<div>📷<br/>รูปภาพ<br/>โหลดไม่ได้</div>";
+                                        parent.appendChild(errorDiv);
+                                      }
+                                    }}
+                                  />
+                                  <div className="absolute inset-0 bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-xl flex items-center justify-center pointer-events-none">
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-white text-sm font-semibold bg-gray-500 bg-opacity-80 px-3 py-2 rounded-lg shadow-lg border border-white border-opacity-20">
+                                      <Eye className="w-4 h-4 inline" />
+                                    </div>
+                                  </div>
+                                  {ticket.imageUrls &&
+                                    ticket.imageUrls.length > 1 && (
+                                      <div className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-medium">
+                                        {index + 1}
+                                      </div>
+                                    )}
                                 </div>
                               </div>
-                            </div>
+                            ))}
                           </div>
                         )}
                       </div>

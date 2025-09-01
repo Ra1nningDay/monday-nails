@@ -11,6 +11,7 @@ import {
   CheckCircle,
   AlertCircle,
   Upload,
+  X,
 } from "lucide-react";
 
 const useUser = [
@@ -24,28 +25,51 @@ const useUser = [
 
 export default function WorkReportPage() {
   const [price, setPrice] = useState("");
-  const [workerName, setWorkerName] = useState("");
+  const [workerName, setWorkerName] = useState(useUser[0]?.name || "");
   const [description, setDescription] = useState("");
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      // Create preview URL
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      // จำกัดจำนวนรูปภาพไม่เกิน 5 รูป
+      const newFiles = [...imageFiles, ...files].slice(0, 5);
+      setImageFiles(newFiles);
+
+      // สร้าง preview URLs
+      const newPreviews = files.map((file) => {
+        return new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            resolve(e.target?.result as string);
+          };
+          reader.readAsDataURL(file);
+        });
+      });
+
+      Promise.all(newPreviews).then((previews) => {
+        setImagePreviews((prev) => [...prev, ...previews].slice(0, 5));
+      });
     }
+  };
+
+  const removeImage = (index: number) => {
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+
+    // Validate required fields
+    if (!price || !workerName) {
+      alert("กรุณากรอกข้อมูลให้ครบถ้วน (ราคาและช่างที่ทำ)");
+      return;
+    }
+
     setLoading(true);
     setSuccess(false);
 
@@ -54,14 +78,23 @@ export default function WorkReportPage() {
       formData.append("price", price);
       formData.append("workerName", workerName);
       formData.append("description", description);
-      if (imageFile) {
-        formData.append("image", imageFile);
-      }
+
+      // เพิ่มรูปภาพทั้งหมด
+      imageFiles.forEach((file, index) => {
+        formData.append(`image${index}`, file);
+      });
 
       const response = await fetch("/api/work-tickets", {
         method: "POST",
         body: formData,
       });
+
+      console.log("Response status:", response.status);
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log("Error response:", errorData);
+        throw new Error(errorData.message || "Failed to submit work report");
+      }
 
       if (response.ok) {
         setSuccess(true);
@@ -69,8 +102,8 @@ export default function WorkReportPage() {
         setPrice("");
         setWorkerName("");
         setDescription("");
-        setImageFile(null);
-        setImagePreview(null);
+        setImageFiles([]);
+        setImagePreviews([]);
       } else {
         throw new Error("Failed to submit work report");
       }
@@ -80,11 +113,6 @@ export default function WorkReportPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
   };
 
   return (
@@ -161,6 +189,7 @@ export default function WorkReportPage() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                 required
               >
+                <option value="">เลือกช่าง</option>
                 {useUser.map((user) => (
                   <option key={user.name} value={user.name}>
                     {user.name}
@@ -195,32 +224,38 @@ export default function WorkReportPage() {
           <div>
             <label className="text-sm font-medium text-gray-700 mb-2 flex items-center">
               <ImageIcon className="w-4 h-4 mr-2 text-purple-600" />
-              รูปภาพผลงาน (ไม่บังคับ)
+              รูปภาพผลงาน (ไม่บังคับ) - สูงสุด 5 รูป
             </label>
 
-            {imagePreview ? (
-              <div className="space-y-3">
-                <div className="relative inline-block">
-                  <Image
-                    src={imagePreview}
-                    alt="Preview of uploaded work image"
-                    width={128}
-                    height={128}
-                    className="w-32 h-32 object-cover rounded-lg border-2 border-gray-200"
-                  />
-                  <button
-                    type="button"
-                    onClick={removeImage}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
-                  >
-                    ×
-                  </button>
+            {imagePreviews.length > 0 ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  {imagePreviews.map((preview, index) => (
+                    <div key={index} className="relative">
+                      <Image
+                        src={preview}
+                        alt={`Preview ${index + 1}`}
+                        width={128}
+                        height={128}
+                        className="w-full h-32 object-cover rounded-lg border-2 border-gray-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
                 <p className="text-sm text-gray-600">
-                  รูปภาพที่เลือก: {imageFile?.name}
+                  รูปภาพที่เลือก: {imageFiles.length} รูป
                 </p>
               </div>
-            ) : (
+            ) : null}
+
+            {imagePreviews.length < 5 && (
               <div className="relative">
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer">
                   <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
@@ -229,7 +264,7 @@ export default function WorkReportPage() {
                       คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่
                     </p>
                     <p className="text-xs text-gray-500">
-                      รองรับไฟล์: JPG, PNG, GIF ขนาดไม่เกิน 5MB
+                      รองรับไฟล์: JPG, PNG, GIF ขนาดไม่เกิน 5MB (สูงสุด 5 รูป)
                     </p>
                   </div>
                 </div>
@@ -239,6 +274,7 @@ export default function WorkReportPage() {
                   onChange={handleImageChange}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   id="image-upload"
+                  multiple
                 />
                 <label
                   htmlFor="image-upload"

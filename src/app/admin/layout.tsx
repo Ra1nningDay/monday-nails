@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Home, FileText, Plus, BarChart3, LogOut } from "lucide-react";
+import { Menu, X, Home, FileText, BarChart3, LogOut } from "lucide-react";
 
 interface AdminLayoutProps {
   children: React.ReactNode;

@@ -38,7 +38,7 @@ model WorkTicket {
   id          String   @id @default(cuid())
   price       Float
   workerName  String
-  imageUrl    String?
+  imageUrls   Json?    // Changed from imageUrl String? to imageUrls Json? to support multiple images
   description String?
   status      String   @default("pending") // pending, completed, cancelled
   createdAt   DateTime @default(now())

@@ -35,7 +35,7 @@ function LoginForm() {
         throw new Error((data && data.message) || "Login failed");
       }
 
-      const { role, redirectTo } = await res.json();
+      const { redirectTo } = await res.json();
 
       // Redirect based on role
       window.location.href = redirectTo;
