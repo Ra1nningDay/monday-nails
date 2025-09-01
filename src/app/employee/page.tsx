@@ -12,7 +12,13 @@ import {
   AlertCircle,
   Upload,
   X,
+  Loader2,
 } from "lucide-react";
+import {
+  compressImage,
+  validateImageFile,
+  formatFileSize,
+} from "@/utils/imageUtils";
 
 const useUser = [
   {
@@ -31,32 +37,82 @@ export default function WorkReportPage() {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>("");
+  const [processingImages, setProcessingImages] = useState(false);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
+    if (files.length === 0) return;
+
+    setProcessingImages(true);
+    setUploadProgress("กำลังประมวลผลรูปภาพ...");
+
+    try {
       // จำกัดจำนวนรูปภาพไม่เกิน 5 รูป
-      const newFiles = [...imageFiles, ...files].slice(0, 5);
-      setImageFiles(newFiles);
+      const remainingSlots = 5 - imageFiles.length;
+      const filesToProcess = files.slice(0, remainingSlots);
 
-      // สร้าง preview URLs
-      const newPreviews = files.map((file) => {
-        return new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            resolve(e.target?.result as string);
-          };
-          reader.readAsDataURL(file);
-        });
-      });
+      const processedFiles: File[] = [];
+      const newPreviews: string[] = [];
 
-      Promise.all(newPreviews).then((previews) => {
-        setImagePreviews((prev) => [...prev, ...previews].slice(0, 5));
-      });
+      for (let i = 0; i < filesToProcess.length; i++) {
+        const file = filesToProcess[i];
+        setUploadProgress(
+          `กำลังประมวลผลรูปภาพ ${i + 1}/${filesToProcess.length}...`
+        );
+
+        // Validate file
+        const validationError = validateImageFile(file);
+        if (validationError) {
+          alert(`รูปภาพ "${file.name}": ${validationError}`);
+          continue;
+        }
+
+        try {
+          // Compress image
+          const compressedFile = await compressImage(file);
+          processedFiles.push(compressedFile);
+
+          // Create preview
+          const previewUrl = URL.createObjectURL(compressedFile);
+          newPreviews.push(previewUrl);
+
+          console.log(`Image processed: ${file.name}`, {
+            originalSize: formatFileSize(file.size),
+            compressedSize: formatFileSize(compressedFile.size),
+            compression: `${(
+              ((file.size - compressedFile.size) / file.size) *
+              100
+            ).toFixed(1)}%`,
+          });
+        } catch (error) {
+          console.error(`Error processing image ${file.name}:`, error);
+          alert(`ไม่สามารถประมวลผลรูปภาพ "${file.name}" ได้`);
+        }
+      }
+
+      if (processedFiles.length > 0) {
+        setImageFiles((prev) => [...prev, ...processedFiles]);
+        setImagePreviews((prev) => [...prev, ...newPreviews]);
+      }
+    } catch (error) {
+      console.error("Error processing images:", error);
+      alert("เกิดข้อผิดพลาดในการประมวลผลรูปภาพ");
+    } finally {
+      setProcessingImages(false);
+      setUploadProgress("");
+      // Reset input
+      e.target.value = "";
     }
   };
 
   const removeImage = (index: number) => {
+    // Clean up preview URL to prevent memory leaks
+    const previewUrl = imagePreviews[index];
+    if (previewUrl && previewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
     setImageFiles((prev) => prev.filter((_, i) => i !== index));
     setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
@@ -72,6 +128,7 @@ export default function WorkReportPage() {
 
     setLoading(true);
     setSuccess(false);
+    setUploadProgress("กำลังเตรียมข้อมูล...");
 
     try {
       const formData = new FormData();
@@ -83,6 +140,8 @@ export default function WorkReportPage() {
       imageFiles.forEach((file, index) => {
         formData.append(`image${index}`, file);
       });
+
+      setUploadProgress(`กำลังส่งข้อมูล...`);
 
       const response = await fetch("/api/work-tickets", {
         method: "POST",
@@ -98,6 +157,12 @@ export default function WorkReportPage() {
 
       if (response.ok) {
         setSuccess(true);
+        // Clean up preview URLs
+        imagePreviews.forEach((url) => {
+          if (url.startsWith("blob:")) {
+            URL.revokeObjectURL(url);
+          }
+        });
         // Reset form
         setPrice("");
         setWorkerName("");
@@ -109,9 +174,12 @@ export default function WorkReportPage() {
       }
     } catch (error) {
       console.error("Error:", error);
-      alert("เกิดข้อผิดพลาดในการส่งข้อมูล");
+      const errorMessage =
+        error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการส่งข้อมูล";
+      alert(errorMessage);
     } finally {
       setLoading(false);
+      setUploadProgress("");
     }
   };
 
@@ -129,6 +197,23 @@ export default function WorkReportPage() {
           บันทึกงานที่ทำเสร็จแล้วเพื่อติดตามและจัดการ
         </p>
       </div>
+
+      {/* Progress Indicator */}
+      {(processingImages || loading) && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center">
+            <Loader2 className="w-5 h-5 text-blue-400 mr-2 animate-spin" />
+            <div>
+              <h3 className="text-sm font-medium text-blue-800">
+                {processingImages ? "กำลังประมวลผลรูปภาพ" : "กำลังส่งข้อมูล"}
+              </h3>
+              <p className="text-sm text-blue-700 mt-1">
+                {uploadProgress || "กรุณารอสักครู่..."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Success Message */}
       {success && (
@@ -231,7 +316,7 @@ export default function WorkReportPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                   {imagePreviews.map((preview, index) => (
-                    <div key={index} className="relative">
+                    <div key={index} className="relative group">
                       <Image
                         src={preview}
                         alt={`Preview ${index + 1}`}
@@ -242,29 +327,69 @@ export default function WorkReportPage() {
                       <button
                         type="button"
                         onClick={() => removeImage(index)}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors"
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                        disabled={processingImages || loading}
                       >
                         <X className="w-4 h-4" />
                       </button>
+                      <div className="absolute bottom-1 left-1 bg-black bg-opacity-60 text-white text-xs px-1 py-0.5 rounded">
+                        {formatFileSize(imageFiles[index]?.size || 0)}
+                      </div>
                     </div>
                   ))}
                 </div>
                 <p className="text-sm text-gray-600">
                   รูปภาพที่เลือก: {imageFiles.length} รูป
+                  {imageFiles.length > 0 && (
+                    <span className="ml-2 text-xs text-gray-500">
+                      (รวม:{" "}
+                      {formatFileSize(
+                        imageFiles.reduce((total, file) => total + file.size, 0)
+                      )}
+                      )
+                    </span>
+                  )}
                 </p>
               </div>
             ) : null}
 
             {imagePreviews.length < 5 && (
               <div className="relative">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer">
-                  <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <div
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
+                    processingImages || loading
+                      ? "border-gray-200 bg-gray-50 cursor-not-allowed"
+                      : "border-gray-300 hover:border-blue-400"
+                  }`}
+                >
+                  <Upload
+                    className={`mx-auto h-12 w-12 mb-4 ${
+                      processingImages || loading
+                        ? "text-gray-300"
+                        : "text-gray-400"
+                    }`}
+                  />
                   <div className="space-y-2">
-                    <p className="text-sm text-gray-600">
-                      คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่
+                    <p
+                      className={`text-sm ${
+                        processingImages || loading
+                          ? "text-gray-400"
+                          : "text-gray-600"
+                      }`}
+                    >
+                      {processingImages
+                        ? "กำลังประมวลผลรูปภาพ..."
+                        : loading
+                        ? "กำลังส่งข้อมูล..."
+                        : "คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่"}
                     </p>
                     <p className="text-xs text-gray-500">
-                      รองรับไฟล์: JPG, PNG, GIF ขนาดไม่เกิน 5MB (สูงสุด 5 รูป)
+                      รองรับไฟล์: JPG, PNG, GIF, WebP ขนาดไม่เกิน 10MB (สูงสุด 5
+                      รูป)
+                      <br />
+                      <span className="text-blue-600">
+                        รูปภาพจะถูกบีบอัดอัตโนมัติเพื่อประสิทธิภาพที่ดีขึ้น
+                      </span>
                     </p>
                   </div>
                 </div>
@@ -275,11 +400,14 @@ export default function WorkReportPage() {
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   id="image-upload"
                   multiple
+                  disabled={processingImages || loading}
                 />
-                <label
-                  htmlFor="image-upload"
-                  className="absolute inset-0 cursor-pointer"
-                />
+                {!(processingImages || loading) && (
+                  <label
+                    htmlFor="image-upload"
+                    className="absolute inset-0 cursor-pointer"
+                  />
+                )}
               </div>
             )}
           </div>
@@ -303,13 +431,18 @@ export default function WorkReportPage() {
           <div className="pt-4">
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || processingImages}
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02]"
             >
               {loading ? (
                 <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  กำลังส่งข้อมูล...
+                  <Loader2 className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
+                  {uploadProgress || "กำลังส่งข้อมูล..."}
+                </div>
+              ) : processingImages ? (
+                <div className="flex items-center justify-center">
+                  <Loader2 className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
+                  กำลังประมวลผลรูปภาพ...
                 </div>
               ) : (
                 <div className="flex items-center justify-center">

@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Note: Body size limits are handled at the deployment level (Vercel: 4.5MB)
+  // and in our API routes with proper validation
 };
 
 export default nextConfig;

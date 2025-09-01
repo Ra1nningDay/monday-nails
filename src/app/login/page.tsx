@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, FormEvent, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 
 function LoginForm() {
   const [email, setEmail] = useState("");
@@ -9,15 +9,48 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showRedirectMessage, setShowRedirectMessage] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => {
+    // ตรวจสอบการ authentication ปัจจุบัน
+    const checkAuthStatus = async () => {
+      try {
+        // ตรวจสอบว่า user login อยู่แล้วหรือไม่
+        const response = await fetch("/api/auth/check", {
+          method: "GET",
+          credentials: "include",
+        });
+
+        if (response.ok) {
+          const { authenticated, role } = await response.json();
+          if (authenticated) {
+            // ถ้า login แล้วให้ redirect ไปหน้าที่เหมาะสม
+            const redirectTo = role === "admin" ? "/admin" : "/employee";
+            console.log(
+              `🔄 Already authenticated as ${role}, redirecting to ${redirectTo}`
+            );
+            router.replace(redirectTo);
+            return;
+          }
+        }
+      } catch (error) {
+        console.log("Auth check failed:", error);
+        // ถ้าเกิดข้อผิดพลาด ให้แสดงหน้า login ปกติ
+      } finally {
+        setCheckingAuth(false);
+      }
+    };
+
+    checkAuthStatus();
+
     // ตรวจสอบว่ามี from parameter หรือไม่
     const from = searchParams.get("from");
     if (from) {
       setShowRedirectMessage(true);
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -37,8 +70,17 @@ function LoginForm() {
 
       const { redirectTo } = await res.json();
 
+      // ตรวจสอบว่ามีหน้าที่ต้องการกลับไปหรือไม่
+      const from = searchParams.get("from");
+      const finalRedirectTo =
+        from && (from.startsWith("/admin") || from.startsWith("/employee"))
+          ? from
+          : redirectTo;
+
+      console.log(`🔄 Login successful, redirecting to: ${finalRedirectTo}`);
+
       // Redirect based on role
-      window.location.href = redirectTo;
+      window.location.href = finalRedirectTo;
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Login failed";
       setError(errorMessage);
@@ -46,6 +88,18 @@ function LoginForm() {
       setLoading(false);
     }
   };
+
+  // แสดง loading ขณะกำลังตรวจสอบ authentication
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">กำลังตรวจสอบสถานะการเข้าสู่ระบบ...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
