@@ -41,6 +41,7 @@ model WorkTicket {
   imageUrls   Json?    // Changed from imageUrl String? to imageUrls Json? to support multiple images
   description String?
   status      String   @default("pending") // pending, completed, cancelled
+  occurredAt  DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

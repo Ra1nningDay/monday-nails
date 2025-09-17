@@ -1,5 +1,20 @@
 import { v2 as cloudinary, UploadApiResponse } from "cloudinary";
 
+// ตรวจสอบ environment variables
+const requiredEnvVars = {
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+};
+
+const missingVars = Object.entries(requiredEnvVars)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (missingVars.length > 0) {
+  console.error("❌ Missing Cloudinary environment variables:", missingVars);
+}
+
 // Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -11,6 +26,7 @@ console.log("🔧 Cloudinary configured with:", {
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY ? "***set***" : "***not set***",
   api_secret: process.env.CLOUDINARY_API_SECRET ? "***set***" : "***not set***",
+  missing_vars: missingVars.length > 0 ? missingVars : "none",
 });
 
 export default cloudinary;
@@ -21,6 +37,13 @@ export async function uploadImageToCloudinary(
   folder: string = "monday-nail/work-images"
 ): Promise<string> {
   try {
+    // ตรวจสอบ Cloudinary config ก่อนใช้งาน
+    if (missingVars.length > 0) {
+      throw new Error(
+        `Cloudinary not configured properly. Missing: ${missingVars.join(", ")}`
+      );
+    }
+
     console.log(
       "📤 Starting upload for file:",
       file.name,

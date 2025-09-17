@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { uploadMultipleImages } from "@/lib/cloudinary";
-import { testCloudinaryConnection } from "@/lib/cloudinary-test";
 import { Prisma } from "@prisma/client";
 
 // GET - ดึง Work Tickets ทั้งหมด
@@ -57,8 +56,14 @@ export async function POST(req: NextRequest) {
     const price = parseFloat(formData.get("price") as string);
     const workerName = formData.get("workerName") as string;
     const description = formData.get("description") as string;
+    const occurredAtRaw = formData.get("occurredAt") as string | null;
 
-    console.log("Parsed data:", { price, workerName, description });
+    console.log("Parsed data:", {
+      price,
+      workerName,
+      description,
+      occurredAtRaw,
+    });
 
     // Handle multiple images
     const imageFiles: File[] = [];
@@ -133,12 +138,6 @@ export async function POST(req: NextRequest) {
             : "***not set***",
         });
 
-        // ทดสอบ connection ก่อน
-        const connectionOk = await testCloudinaryConnection();
-        if (!connectionOk) {
-          throw new Error("Cloudinary connection failed");
-        }
-
         // Upload รูปภาพไป Cloudinary
         console.log(
           `🚀 Starting Cloudinary upload for ${imageFiles.length} files...`
@@ -171,22 +170,78 @@ export async function POST(req: NextRequest) {
 
     console.log("📝 Final imageUrls before saving:", imageUrls);
 
+    // Parse occurredAt (if provided) as local date at midnight
+    let occurredAt: Date | undefined = undefined;
+    if (occurredAtRaw) {
+      try {
+        // Support YYYY-MM-DD (date input) or ISO string
+        const date = new Date(occurredAtRaw);
+        if (!isNaN(date.getTime())) {
+          occurredAt = date;
+        }
+      } catch {
+        // ignore parse error; fallback to default(now()) in DB
+      }
+    }
+
+    const createData: Prisma.WorkTicketCreateInput = {
+      price,
+      workerName,
+      description: description || null,
+      imageUrls: imageUrls.length > 0 ? imageUrls : Prisma.DbNull,
+      status: "completed",
+    };
+    if (occurredAt) {
+      createData.occurredAt = occurredAt;
+    }
+
     const ticket = await prisma.workTicket.create({
-      data: {
-        price,
-        workerName,
-        description: description || null,
-        imageUrls: imageUrls.length > 0 ? imageUrls : Prisma.DbNull,
-        status: "completed",
-      },
+      data: createData,
     });
 
     return NextResponse.json(ticket, { status: 201 });
   } catch (error) {
     console.error("Error creating ticket:", error);
+
+    // ให้ error message ที่ชัดเจนขึ้น
+    let errorMessage = "Failed to create ticket";
+    let statusCode = 500;
+
+    if (error instanceof Error) {
+      console.error("Error details:", {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+      });
+
+      // จัดการ error ต่างๆ
+      if (error.message.includes("Cloudinary")) {
+        errorMessage = "เกิดปัญหาในการอัพโหลดรูปภาพ กรุณาลองใหม่อีกครั้ง";
+      } else if (
+        error.message.includes("Database") ||
+        error.message.includes("Prisma")
+      ) {
+        errorMessage = "เกิดปัญหาในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง";
+      } else if (error.message.includes("timeout")) {
+        errorMessage = "การประมวลผลใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง";
+        statusCode = 408;
+      } else {
+        errorMessage = error.message;
+      }
+    }
+
     return NextResponse.json(
-      { message: "Failed to create ticket" },
-      { status: 500 }
+      {
+        message: errorMessage,
+        error:
+          process.env.NODE_ENV === "development"
+            ? error instanceof Error
+              ? error.message
+              : String(error)
+            : undefined,
+        timestamp: new Date().toISOString(),
+      },
+      { status: statusCode }
     );
   }
 }

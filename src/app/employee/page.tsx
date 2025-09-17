@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useEffect, useMemo, useState, FormEvent, useCallback } from "react";
 import Image from "next/image";
 import {
   FileText,
@@ -13,6 +13,7 @@ import {
   Upload,
   X,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import {
   compressImage,
@@ -37,8 +38,110 @@ export default function WorkReportPage() {
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [uploadProgress, setUploadProgress] = useState<string>("");
   const [processingImages, setProcessingImages] = useState(false);
+  // วันที่ทำงาน (occurredAt) เริ่มต้นวันนี้ (ตามเขตเวลาเครื่อง)
+  const todayLocal = useMemo(() => {
+    const now = new Date();
+    const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000;
+    return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10);
+  }, []);
+  const [occurredAt, setOccurredAt] = useState<string>(todayLocal);
+
+  // สถานะแก้ไข + รายการล่าสุด
+  type WorkTicketDto = {
+    id: string;
+    price: number;
+    workerName: string;
+    description?: string | null;
+    status: string;
+    imageUrls?: string[] | null;
+    occurredAt?: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  const [tickets, setTickets] = useState<WorkTicketDto[]>([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const fetchTickets = useCallback(async (): Promise<void> => {
+    try {
+      setListLoading(true);
+      const res = await fetch("/api/work-tickets", { cache: "no-store" });
+      if (!res.ok) return;
+      const data: WorkTicketDto[] = await res.json();
+      setTickets(data);
+    } finally {
+      setListLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTickets();
+  }, [fetchTickets]);
+
+  const handleDelete = async (ticketId: string) => {
+    // ถ้ากำลังแก้ไขรายการนี้อยู่ ให้แจ้งเตือนเป็นพิเศษ
+    const isEditingThis = isEditing && editingId === ticketId;
+    const confirmMessage = isEditingThis
+      ? "คุณกำลังแก้ไขรายการนี้อยู่ หากลบแล้วข้อมูลที่แก้ไขจะหายไป คุณแน่ใจหรือไม่?"
+      : "คุณแน่ใจหรือไม่ที่จะลบรายการนี้? การลบไม่สามารถย้อนกลับได้";
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setDeletingId(ticketId);
+      const response = await fetch(`/api/work-tickets/${ticketId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        let errorMessage = "ไม่สามารถลบรายการได้";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          errorMessage = `HTTP ${response.status} Error`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // ลบสำเร็จ - refresh รายการ
+      await fetchTickets();
+
+      // แสดงข้อความสำเร็จ
+      setSuccess(true);
+      setSuccessMessage("ลบรายการเรียบร้อยแล้ว");
+      setTimeout(() => {
+        setSuccess(false);
+        setSuccessMessage("");
+      }, 3000);
+
+      // ถ้ากำลังแก้ไขรายการที่ถูกลบ ให้ยกเลิกการแก้ไข
+      if (editingId === ticketId) {
+        setIsEditing(false);
+        setEditingId(null);
+        setPrice("");
+        setWorkerName(useUser[0]?.name || "");
+        setDescription("");
+        setOccurredAt(todayLocal);
+        setImageFiles([]);
+        setImagePreviews([]);
+      }
+    } catch (error) {
+      console.error("Error deleting ticket:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการลบรายการ";
+      alert(errorMessage);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -126,37 +229,83 @@ export default function WorkReportPage() {
       return;
     }
 
+    // Validate price
+    const priceNumber = parseFloat(price);
+    if (isNaN(priceNumber) || priceNumber <= 0) {
+      alert("กรุณากรอกราคาที่ถูกต้อง (ต้องเป็นตัวเลขที่มากกว่า 0)");
+      return;
+    }
+
+    // Validate date
+    if (!occurredAt) {
+      alert("กรุณาเลือกวันที่ทำงาน");
+      return;
+    }
+
     setLoading(true);
     setSuccess(false);
     setUploadProgress("กำลังเตรียมข้อมูล...");
 
     try {
-      const formData = new FormData();
-      formData.append("price", price);
-      formData.append("workerName", workerName);
-      formData.append("description", description);
+      let response: Response;
+      if (isEditing && editingId) {
+        setUploadProgress("กำลังอัปเดตรายการ...");
+        response = await fetch(`/api/work-tickets/${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            price: parseFloat(price),
+            workerName,
+            description,
+            occurredAt,
+          }),
+        });
+      } else {
+        const formData = new FormData();
+        formData.append("price", price);
+        formData.append("workerName", workerName);
+        formData.append("description", description);
+        formData.append("occurredAt", occurredAt);
 
-      // เพิ่มรูปภาพทั้งหมด
-      imageFiles.forEach((file, index) => {
-        formData.append(`image${index}`, file);
-      });
+        // เพิ่มรูปภาพทั้งหมด
+        imageFiles.forEach((file, index) => {
+          formData.append(`image${index}`, file);
+        });
 
-      setUploadProgress(`กำลังส่งข้อมูล...`);
+        setUploadProgress(`กำลังส่งข้อมูล...`);
 
-      const response = await fetch("/api/work-tickets", {
-        method: "POST",
-        body: formData,
-      });
+        response = await fetch("/api/work-tickets", {
+          method: "POST",
+          body: formData,
+        });
+      }
 
       console.log("Response status:", response.status);
       if (!response.ok) {
-        const errorData = await response.json();
-        console.log("Error response:", errorData);
-        throw new Error(errorData.message || "Failed to submit work report");
+        let errorMessage = "Failed to submit work report";
+        try {
+          const errorData = await response.json();
+          console.log("Error response:", errorData);
+          errorMessage = errorData.message || errorMessage;
+        } catch (jsonError) {
+          // ถ้าไม่สามารถ parse JSON ได้ ให้ใช้ status text
+          console.log("Failed to parse error JSON:", jsonError);
+          errorMessage = response.statusText || `HTTP ${response.status} Error`;
+        }
+        throw new Error(errorMessage);
       }
 
       if (response.ok) {
         setSuccess(true);
+        setSuccessMessage(
+          isEditing
+            ? "แก้ไขรายการเรียบร้อยแล้ว"
+            : "ส่งรายงานการทำงานเรียบร้อยแล้ว"
+        );
+        setTimeout(() => {
+          setSuccess(false);
+          setSuccessMessage("");
+        }, 3000);
         // Clean up preview URLs
         imagePreviews.forEach((url) => {
           if (url.startsWith("blob:")) {
@@ -169,13 +318,43 @@ export default function WorkReportPage() {
         setDescription("");
         setImageFiles([]);
         setImagePreviews([]);
+        setOccurredAt(todayLocal);
+        if (isEditing) {
+          setIsEditing(false);
+          setEditingId(null);
+        }
+        // refresh list
+        fetchTickets();
       } else {
         throw new Error("Failed to submit work report");
       }
     } catch (error) {
-      console.error("Error:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "เกิดข้อผิดพลาดในการส่งข้อมูล";
+      console.error("Error submitting work report:", error);
+
+      let errorMessage = "เกิดข้อผิดพลาดในการส่งข้อมูล";
+
+      if (error instanceof Error) {
+        errorMessage = error.message;
+
+        // Log additional error details for debugging
+        console.error("Error details:", {
+          name: error.name,
+          message: error.message,
+          stack: error.stack,
+        });
+      }
+
+      // ให้ error message ที่เป็นมิตรกับผู้ใช้
+      if (errorMessage.includes("Failed to fetch")) {
+        errorMessage =
+          "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต";
+      } else if (errorMessage.includes("timeout")) {
+        errorMessage = "การส่งข้อมูลใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง";
+      } else if (errorMessage.includes("Cloudinary")) {
+        errorMessage =
+          "เกิดปัญหาในการอัพโหลดรูปภาพ กรุณาลองใหม่อีกครั้งหรือลดขนาดรูปภาพ";
+      }
+
       alert(errorMessage);
     } finally {
       setLoading(false);
@@ -222,7 +401,7 @@ export default function WorkReportPage() {
             <CheckCircle className="w-5 h-5 text-green-400 mr-2" />
             <div>
               <h3 className="text-sm font-medium text-green-800">
-                ส่งรายงานการทำงานเรียบร้อยแล้ว
+                {successMessage || "ส่งรายงานการทำงานเรียบร้อยแล้ว"}
               </h3>
               <p className="text-sm text-green-700 mt-1">
                 ระบบได้บันทึกข้อมูลและส่งไปยังผู้ดูแลแล้ว
@@ -236,7 +415,7 @@ export default function WorkReportPage() {
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
           <h2 className="text-xl font-semibold text-white flex items-center">
-            ข้อมูลงานที่ทำเสร็จแล้ว
+            {isEditing ? "แก้ไขรายการงาน" : "ข้อมูลงานที่ทำเสร็จแล้ว"}
           </h2>
         </div>
 
@@ -284,6 +463,24 @@ export default function WorkReportPage() {
 
               <p className="mt-1 text-xs text-gray-500">
                 กรอกชื่อช่างที่รับผิดชอบงานนี้
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 flex items-center">
+                <Calendar className="w-4 h-4 mr-2 text-indigo-600" />
+                วันที่ทำรายการ
+              </label>
+              <input
+                type="date"
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                required
+                max={todayLocal}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                ค่าเริ่มต้นเป็นวันที่ปัจจุบัน
               </p>
             </div>
           </div>
@@ -357,14 +554,14 @@ export default function WorkReportPage() {
               <div className="relative">
                 <div
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
-                    processingImages || loading
+                    processingImages || loading || isEditing
                       ? "border-gray-200 bg-gray-50 cursor-not-allowed"
                       : "border-gray-300 hover:border-blue-400"
                   }`}
                 >
                   <Upload
                     className={`mx-auto h-12 w-12 mb-4 ${
-                      processingImages || loading
+                      processingImages || loading || isEditing
                         ? "text-gray-300"
                         : "text-gray-400"
                     }`}
@@ -372,7 +569,7 @@ export default function WorkReportPage() {
                   <div className="space-y-2">
                     <p
                       className={`text-sm ${
-                        processingImages || loading
+                        processingImages || loading || isEditing
                           ? "text-gray-400"
                           : "text-gray-600"
                       }`}
@@ -400,9 +597,9 @@ export default function WorkReportPage() {
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   id="image-upload"
                   multiple
-                  disabled={processingImages || loading}
+                  disabled={processingImages || loading || isEditing}
                 />
-                {!(processingImages || loading) && (
+                {!(processingImages || loading || isEditing) && (
                   <label
                     htmlFor="image-upload"
                     className="absolute inset-0 cursor-pointer"
@@ -412,17 +609,15 @@ export default function WorkReportPage() {
             )}
           </div>
 
-          {/* Auto Timestamp Info */}
+          {/* Info */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-center">
               <Calendar className="w-5 h-5 text-blue-600 mr-2" />
               <div>
                 <p className="text-sm font-medium text-blue-800">
-                  ข้อมูลอัตโนมัติ
+                  วันที่ทำงานสามารถเลือกย้อนหลังได้
                 </p>
-                <p className="text-sm text-blue-700">
-                  ระบบจะบันทึกวันเวลาที่ส่งงานเข้ามาอัตโนมัติ
-                </p>
+                <p className="text-sm text-blue-700">ค่าเริ่มต้นเป็นวันนี้</p>
               </div>
             </div>
           </div>
@@ -432,12 +627,13 @@ export default function WorkReportPage() {
             <button
               type="submit"
               disabled={loading || processingImages}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02]"
+              className="w-full bg-gradient-to-r cursor-pointer from-blue-600 to-purple-600 text-white py-4 px-6 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform"
             >
               {loading ? (
                 <div className="flex items-center justify-center">
                   <Loader2 className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
-                  {uploadProgress || "กำลังส่งข้อมูล..."}
+                  {uploadProgress ||
+                    (isEditing ? "กำลังอัปเดต..." : "กำลังส่งข้อมูล...")}
                 </div>
               ) : processingImages ? (
                 <div className="flex items-center justify-center">
@@ -447,12 +643,132 @@ export default function WorkReportPage() {
               ) : (
                 <div className="flex items-center justify-center">
                   <CheckCircle className="w-5 h-5 mr-2" />
-                  ยืนยันการส่งงาน
+                  {isEditing ? "บันทึกการแก้ไข" : "ยืนยันการส่งงาน"}
                 </div>
               )}
             </button>
+            {isEditing && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditingId(null);
+                  setPrice("");
+                  setWorkerName("");
+                  setDescription("");
+                  setOccurredAt(todayLocal);
+                  setImageFiles([]);
+                  setImagePreviews([]);
+                }}
+                className="mt-3 w-full border border-gray-300 text-gray-700 py-3 px-6 rounded-lg hover:bg-gray-50"
+              >
+                ยกเลิกการแก้ไข
+              </button>
+            )}
           </div>
         </form>
+      </div>
+
+      {/* Ticket List (simple) */}
+      <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b">
+          <h3 className="text-lg font-semibold">รายการล่าสุด</h3>
+        </div>
+        <div className="divide-y">
+          {listLoading && (
+            <div className="p-4 text-sm text-gray-500">กำลังโหลดรายการ...</div>
+          )}
+          {!listLoading && tickets.length === 0 && (
+            <div className="p-4 text-sm text-gray-500">ยังไม่มีรายการ</div>
+          )}
+          {tickets.slice(0, 10).map((t) => {
+            const dateText = t.occurredAt || t.createdAt;
+            const priceText = new Intl.NumberFormat("th-TH", {
+              style: "currency",
+              currency: "THB",
+              maximumFractionDigits: 2,
+            }).format(t.price || 0);
+
+            const isCurrentlyEditing = isEditing && editingId === t.id;
+            const isCurrentlyDeleting = deletingId === t.id;
+
+            return (
+              <div
+                key={t.id}
+                className={`p-4 flex items-center justify-between transition-colors ${
+                  isCurrentlyEditing
+                    ? "bg-blue-50 border-l-4 border-blue-500"
+                    : isCurrentlyDeleting
+                    ? "bg-red-50 opacity-75"
+                    : "hover:bg-gray-50"
+                }`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-gray-900 truncate flex items-center">
+                    {t.workerName} • {priceText}
+                    {isCurrentlyEditing && (
+                      <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+                        กำลังแก้ไข
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-600 truncate">
+                    {t.description || "-"}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    วันที่ทำงาน:{" "}
+                    {new Date(dateText).toLocaleDateString("th-TH")}
+                  </div>
+                </div>
+                <div className="ml-4 flex space-x-2">
+                  <button
+                    type="button"
+                    className="px-3 py-1.5 text-sm rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={() => {
+                      setIsEditing(true);
+                      setEditingId(t.id);
+                      setPrice(String(t.price ?? ""));
+                      setWorkerName(t.workerName || "");
+                      setDescription(t.description || "");
+                      const d = t.occurredAt
+                        ? new Date(t.occurredAt)
+                        : new Date(t.createdAt);
+                      const tzOffsetMs = d.getTimezoneOffset() * 60 * 1000;
+                      const localDateStr = new Date(d.getTime() - tzOffsetMs)
+                        .toISOString()
+                        .slice(0, 10);
+                      setOccurredAt(localDateStr);
+                      // ไม่รองรับแก้ไขรูปภาพในโหมดแก้ไข
+                      setImageFiles([]);
+                      setImagePreviews([]);
+                    }}
+                    disabled={deletingId === t.id || isEditing}
+                  >
+                    แก้ไข
+                  </button>
+                  <button
+                    type="button"
+                    className="px-3 py-1.5 text-sm rounded-lg border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    onClick={() => handleDelete(t.id)}
+                    disabled={deletingId === t.id || isEditing}
+                  >
+                    {deletingId === t.id ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        กำลังลบ...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        ลบ
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Additional Info */}
