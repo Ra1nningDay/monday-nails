@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    env_file:
+      - ./docker/.env.docker
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-monday} -d ${POSTGRES_DB:-monday_nails}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+  web:
+    build:
+      context: .
+      target: runtime
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./docker/.env.docker
+    environment:
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    volumes:
+      - pnpm-store:/root/.local/share/pnpm
+    entrypoint: ["/app/docker/app-entrypoint.sh"]
+    networks:
+      - backend
+networks:
+  backend: {}
+volumes:
+  postgres_data: {}
+  pnpm-store: {}
