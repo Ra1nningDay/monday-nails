@@ -7,6 +7,10 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint .",
+    "test:docker": "bash ./scripts/tests/docker_stack_smoke.sh && bash ./scripts/tests/postgres_connection.sh",
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down -v",
     "seed": "tsx prisma/seed.ts",
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
@@ -41,3 +45,4 @@
     "typescript": "^5"
   }
 }
+
