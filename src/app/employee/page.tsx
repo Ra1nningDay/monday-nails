@@ -43,9 +43,11 @@ export default function WorkReportPage() {
   const [processingImages, setProcessingImages] = useState(false);
   // วันที่ทำงาน (occurredAt) เริ่มต้นวันนี้ (ตามเขตเวลาเครื่อง)
   const todayLocal = useMemo(() => {
-    const now = new Date();
-    const tzOffsetMs = now.getTimezoneOffset() * 60 * 1000;
-    return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10);
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
   }, []);
   const [occurredAt, setOccurredAt] = useState<string>(todayLocal);
 

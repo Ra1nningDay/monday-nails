@@ -1,0 +1,14 @@
+services:
+  web:
+    ports:
+      - "3100:3000"
+    env_file:
+      - ./docker/.env.docker
+  postgres:
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+volumes:
+  postgres_data:
+    external: false

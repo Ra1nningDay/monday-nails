@@ -188,3 +188,11 @@ src/
 ## 📄 License
 
 MIT License - ดูรายละเอียดใน LICENSE file
+## Docker Workflow
+
+1. Copy docker/.env.docker.example to docker/.env.docker and update secrets as needed.
+2. Build the stack with pnpm docker:build (or docker compose build).
+3. Start the services with pnpm docker:up and access the app at http://localhost:3000.
+4. Run Prisma migrations/seeds automatically via the container entrypoint, or manually with pnpm docker:up -- overrides.
+5. Shut everything down with pnpm docker:down (removes volumes) or docker compose down.
+6. Smoke test the stack locally with pnpm test:docker.
