@@ -21,6 +21,16 @@ import {
   formatFileSize,
 } from "@/utils/imageUtils";
 
+function toLocalDateInputValue(value?: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const tzOffsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - tzOffsetMs).toISOString().slice(0, 10);
+}
+
 const useUser = [
   {
     name: "อั้ม",
@@ -68,6 +78,21 @@ export default function WorkReportPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [filterDate, setFilterDate] = useState<string>(todayLocal);
+  const filteredTickets = useMemo(() => {
+    if (!filterDate) {
+      return tickets;
+    }
+    return tickets.filter((ticket) => {
+      const sourceDate = ticket.occurredAt || ticket.createdAt;
+      if (!sourceDate) {
+        return false;
+      }
+      return toLocalDateInputValue(sourceDate) === filterDate;
+    });
+  }, [tickets, filterDate]);
+  const hasActiveFilter = Boolean(filterDate);
+
 
   const fetchTickets = useCallback(async (): Promise<void> => {
     try {
@@ -673,17 +698,47 @@ export default function WorkReportPage() {
 
       {/* Ticket List (simple) */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-        <div className="px-6 py-4 border-b">
+        <div className="px-6 py-4 border-b space-y-3 md:flex md:items-center md:justify-between md:space-y-0">
           <h3 className="text-lg font-semibold">รายการล่าสุด</h3>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <label htmlFor="ticket-filter-date" className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Filter by date
+            </label>
+            <input
+              id="ticket-filter-date"
+              type="date"
+              value={filterDate}
+              onChange={(event) => setFilterDate(event.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+            />
+            {filterDate && (
+              <button
+                type="button"
+                onClick={() => setFilterDate("")}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                Clear
+              </button>
+            )}
+            <span className="text-xs text-gray-500">
+              Showing {filteredTickets.length} of {tickets.length}
+            </span>
+          </div>
         </div>
         <div className="divide-y">
           {listLoading && (
             <div className="p-4 text-sm text-gray-500">กำลังโหลดรายการ...</div>
           )}
-          {!listLoading && tickets.length === 0 && (
-            <div className="p-4 text-sm text-gray-500">ยังไม่มีรายการ</div>
+          {!listLoading && filteredTickets.length === 0 && (
+            <div className="p-4 text-sm text-gray-500">
+              {hasActiveFilter
+                ? "No work tickets found for the selected date."
+                : "ยังไม่มีรายการ"
+              }
+            </div>
           )}
-          {tickets.slice(0, 10).map((t) => {
+          {!listLoading && filteredTickets.length > 0 &&
+            filteredTickets.map((t) => {
             const dateText = t.occurredAt || t.createdAt;
             const priceText = new Intl.NumberFormat("th-TH", {
               style: "currency",
@@ -732,13 +787,9 @@ export default function WorkReportPage() {
                       setPrice(String(t.price ?? ""));
                       setWorkerName(t.workerName || "");
                       setDescription(t.description || "");
-                      const d = t.occurredAt
-                        ? new Date(t.occurredAt)
-                        : new Date(t.createdAt);
-                      const tzOffsetMs = d.getTimezoneOffset() * 60 * 1000;
-                      const localDateStr = new Date(d.getTime() - tzOffsetMs)
-                        .toISOString()
-                        .slice(0, 10);
+                      const localDateStr =
+                        toLocalDateInputValue(t.occurredAt || t.createdAt) ||
+                        todayLocal;
                       setOccurredAt(localDateStr);
                       // ไม่รองรับแก้ไขรูปภาพในโหมดแก้ไข
                       setImageFiles([]);
